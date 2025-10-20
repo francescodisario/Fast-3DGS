@@ -1,6 +1,5 @@
-# Fast-3DGS
+# [COGS’25 – 2nd Place, ICCV 2025 Workshop] Post-Hoc Compression Algorithm 🚀
 
-# Post-Hoc Compression Algorithm 🚀  
 *Runner-up (2nd place) at the COGS’25 workshop, ICCV 2025 🥈*
 
 Our compression method is **post-hoc** and takes inspiration from **gradient-based pruning** in deep neural networks, specifically *informative gradient–based pruning* 🧠✂️.
