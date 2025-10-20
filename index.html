@@ -400,45 +400,59 @@
     </footer>
   </main>
 
-  <script>
-    // Minimal, accessible comparison slider (mouse, touch, keyboard)
-    (function(){
-      const sliders = document.querySelectorAll('.comparison');
-      sliders.forEach((root) => {
-        const top = root.querySelector('.top');
-        const rule = root.querySelector('.rule');
-        const handle = root.querySelector('.handle');
-        let pct = 50; let dragging = false;
+<script>
+  // Comparison slider with HOVER PREVIEW + drag + touch + keyboard
+  (function(){
+    const sliders = document.querySelectorAll('.comparison');
+    sliders.forEach((root) => {
+      const top = root.querySelector('.top');
+      const rule = root.querySelector('.rule');
+      const handle = root.querySelector('.handle');
 
-        function setPct(p){
-          pct = Math.max(0, Math.min(100, p));
-          top.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
-          rule.style.left = `${pct}%`;
-          handle.style.left = `${pct}%`;
-        }
-        setPct(pct);
+      let pct = 50;
+      let dragging = false;
 
-        function update(e){
-          const rect = root.getBoundingClientRect();
-          const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
-          const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
-          setPct( x / rect.width * 100 );
-        }
+      function setPct(p){
+        pct = Math.max(0, Math.min(100, p));
+        top.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+        rule.style.left = `${pct}%`;
+        handle.style.left = `${pct}%`;
+      }
+      setPct(pct);
 
-        root.addEventListener('mousedown', (e)=>{ dragging = true; update(e); });
-        root.addEventListener('touchstart', (e)=>{ dragging = true; update(e); }, {passive:true});
-        window.addEventListener('mousemove', (e)=>{ if(dragging) update(e); });
-        window.addEventListener('touchmove', (e)=>{ if(dragging) update(e); }, {passive:true});
-        window.addEventListener('mouseup', ()=> dragging = false);
-        window.addEventListener('touchend', ()=> dragging = false);
+      function updateFromEvent(e){
+        const rect = root.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let x = clientX - rect.left;
+        x = Math.max(0, Math.min(x, rect.width));
+        setPct((x / rect.width) * 100);
+      }
 
-        root.addEventListener('keydown', (e)=>{
-          const step = e.shiftKey ? 10 : 2;
-          if(e.key === 'ArrowLeft') setPct(pct - step);
-          if(e.key === 'ArrowRight') setPct(pct + step);
-        });
+      // DRAG (mouse)
+      root.addEventListener('mousedown', (e) => { dragging = true; updateFromEvent(e); });
+      window.addEventListener('mousemove', (e) => { if (dragging) updateFromEvent(e); });
+      window.addEventListener('mouseup',   () => { dragging = false; });
+
+      // TOUCH
+      root.addEventListener('touchstart', (e) => { dragging = true; updateFromEvent(e); }, {passive:true});
+      window.addEventListener('touchmove', (e) => { if (dragging) updateFromEvent(e); }, {passive:true});
+      window.addEventListener('touchend',  () => { dragging = false; });
+
+      // HOVER PREVIEW (mouse over without pressing)
+      // 👉 questa è la parte “come prima”
+      root.addEventListener('mousemove', (e) => {
+        if (!dragging) updateFromEvent(e);
       });
-    })();
-  </script>
+
+      // Tastiera: ←/→ con step 2% (Shift = 10%)
+      root.addEventListener('keydown', (e) => {
+        const step = e.shiftKey ? 10 : 2;
+        if (e.key === 'ArrowLeft')  setPct(pct - step);
+        if (e.key === 'ArrowRight') setPct(pct + step);
+      });
+    });
+  })();
+</script>
+
 </body>
 </html>
