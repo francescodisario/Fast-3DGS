@@ -4,6 +4,8 @@
 
 Our compression method is **post-hoc** and takes inspiration from **gradient-based pruning** in deep neural networks, specifically *informative gradient–based pruning* 🧠✂️.
 
+You can download compressed ckpts [here](https://drive.google.com/file/d/1pntjwW5F2RlT1vAnEZ2bAsm9v-1prRhr/view?usp=sharing).
+
 ## Overview 📌
 Starting from a **pretrained Gaussian Splatting model** (checkpoint provided), the algorithm alternates between two phases:
 
@@ -21,6 +23,13 @@ During fine-tuning, we apply **quantization** ⚙️:
 
 
 Finally, we **compress the parameters with LZMA** 💾.
+
+
+## How to Run 🚀 ##
+Download and install the [Vanilla 3DGS repo](https://github.com/graphdeco-inria/gaussian-splatting.git) along with the pre-trained [ckpts](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/datasets/pretrained/models.zip).
+Run **train.py**. Be sure to point to the right pre-trained dir. 
+There is also an example of compatibility script to run it with Flash-GS (file **flashGS_example.py**).
+
 
 ## Computational Details 🧮
 - **Gradient accumulation** requires a single pass over the training set and typically takes only a few seconds.  
@@ -51,3 +60,26 @@ Results obtained with vanilla-3dgs implementation
 | train      | 21.79 | 0.764 | 0.296 | 87527         | 415 | 3.38      |
 | truck      | 25.04 | 0.872 | 0.165 | 361868        | 243 | 12.64     |
 | **AVG**    | **23.42** | **0.818** | **0.230** | **224698** | **329** | **8.01** |
+
+
+## Acknowledgments
+
+This work was built upon two 3DGS compression techniques.  
+If you liked the project, please cite:
+
+```bibtex
+@inproceedings{ali2025elmgs,
+  title     = {Elmgs: Enhancing memory and computation scalability through compression for 3D Gaussian splatting},
+  author    = {Ali, Muhammad Salman and Bae, Sung-Ho and Tartaglione, Enzo},
+  booktitle = {2025 IEEE/CVF Winter Conference on Applications of Computer Vision (WACV)},
+  pages     = {2591--2600},
+  year      = {2025},
+  organization = {IEEE}
+}
+
+@article{di2025gode,
+  title   = {Gode: Gaussians on demand for progressive level of detail and scalable compression},
+  author  = {Di Sario, Francesco and Renzulli, Riccardo and Grangetto, Marco and Sugimoto, Akihiro and Tartaglione, Enzo},
+  journal = {arXiv preprint arXiv:2501.13558},
+  year    = {2025}
+}
