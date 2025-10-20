@@ -435,7 +435,7 @@ if __name__ == "__main__":
         for scene_name in scenes[dataset_name]:
             args.source_path = f'/scratch/nerf/dataset/{dataset_name}/{scene_name}'
             args.pretrained_dir = f'/scratch/cogs25/gaussian-splatting/models/{scene_name}'  
-            args.model_path = f"/scratch/cogs25/compressed_ckpts_final3/multi_level_models/wacv/{scene_name}/"
+            args.model_path = f"/scratch/cogs25/compressed_ckpts/{scene_name}/"
             args.eval = True
             
             if scene_name in ["bicycle", "flowers", "garden", "stump", "treehill"]:
