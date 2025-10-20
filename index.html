@@ -3,352 +3,442 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Post-Hoc Gaussian Compression — Demo & Results</title>
-  <meta name="description" content="Post-hoc compression for Gaussian Splatting: gradient-informed pruning, fine-tuning, and quantization with LZMA. Interactive demo and results." />
-  <meta property="og:title" content="Post-Hoc Gaussian Compression — Demo & Results" />
-  <meta property="og:description" content="Gradient-informed pruning on pretrained 3DGS with fine-tuning, quantization, and LZMA. Runner-up (2nd) at COGS’25 @ ICCV 2025." />
-  <meta name="theme-color" content="#0f1226" />
+  <title>Fast 3DGS — Post-hoc Compression via Gradient-Informed Pruning</title>
+  <meta name="description" content="Post-hoc compression for 3D Gaussian Splatting via iterative gradient-informed pruning, quantization-aware fine-tuning, and entropy coding." />
+  <meta property="og:title" content="Fast 3DGS — Post-hoc Compression" />
+  <meta property="og:description" content="Gradient-informed pruning on pretrained 3DGS with QAT and entropy coding. Runner-up at COGS’25 (ICCV 2025). Interactive comparisons and quantitative results." />
+  <meta name="theme-color" content="#ffffff" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Favicon (inline SVG, light-theme friendly) -->
+  <link rel="icon" type="image/svg+xml"
+    href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="%230b5fff"/><stop offset="100%" stop-color="%230e8f8f"/></linearGradient></defs><rect rx="12" ry="12" width="64" height="64" fill="url(%23g)"/><g fill="%23ffffff" font-family="Arial,Helvetica,sans-serif" font-weight="700"><text x="50%" y="52%" font-size="22" text-anchor="middle" dominant-baseline="middle">3DGS</text></g></svg>' />
+
   <style>
     :root{
-      --bg:#0b0e1a; --panel:#11152a; --panel-2:#0e1330; --text:#e8ecff; --muted:#a6b0d8;
-      --brand:#6b7cff; --brand-2:#24d2e8; --ring: 0 0 0 3px rgba(107,124,255,.35);
-      --radius:14px; --shadow: 0 30px 80px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
-      --grid-gap: 28px; --max: 1200px;
+      /* Light, sober project-page visuals */
+      --bg: #ffffff;
+      --fg: #101418;
+      --muted: #606a76;
+      --hairline: #e7eaee;
+      --panel: #f6f7f9;
+      --accent: #0b5fff;
+      --accent-2: #0e8f8f;
+      --radius: 10px;
+      --shadow: 0 6px 18px rgba(0,0,0,.06);
+      --max: 1120px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Ubuntu Mono", Consolas, "Liberation Mono", "Courier New", monospace;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%}
+
+    *{ box-sizing: border-box }
+    html, body { height: 100% }
     body{
-      margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial,sans-serif;
-      background:
-        radial-gradient(1200px 600px at 10% -10%, rgba(36,210,232,.12), transparent 60%),
-        radial-gradient(1000px 500px at 90% 10%, rgba(107,124,255,.12), transparent 60%),
-        var(--bg);
-      color:var(--text); line-height:1.6; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-      padding-bottom: 80px;
+      margin:0; background: var(--bg); color: var(--fg);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
     }
-    a{color:var(--brand); text-decoration:none}
-    a:hover{text-decoration:underline}
-    .wrap{max-width:var(--max);margin:0 auto;padding:24px}
-    header{ position:sticky; top:0; z-index:50; background:linear-gradient(180deg, rgba(11,14,26,.9), rgba(11,14,26,.6) 70%, transparent); backdrop-filter: blur(10px); }
-    .nav{display:flex; align-items:center; justify-content:space-between; padding:16px 24px;}
-    .logo{display:flex;gap:12px;align-items:center}
-    .dot{width:14px;height:14px; border-radius:50%;
-      background: radial-gradient(circle at 30% 30%, var(--brand-2), var(--brand));
-      box-shadow: 0 0 24px rgba(36,210,232,.7), 0 0 24px rgba(107,124,255,.7) inset;}
-    .brand{font-weight:800; letter-spacing:.3px}
-    .cta{display:flex; gap:10px; flex-wrap:wrap;}
+    a{ color: var(--accent); text-decoration: none }
+    a:hover{ text-decoration: underline }
+    code, kbd, pre{ font-family: var(--mono) }
+
+    .wrap{ max-width: var(--max); margin: 0 auto; padding: 0 20px }
+
+    header{
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(255,255,255,.9);
+      border-bottom: 1px solid var(--hairline);
+      backdrop-filter: saturate(1.05) blur(6px);
+    }
+    .nav{ display:flex; align-items:center; justify-content:space-between; height: 64px }
+    .brand{ display:flex; align-items:center; gap:10px; font-weight:700 }
+    .dot{ width:10px; height:10px; border-radius:50%; background: var(--accent) }
+
+    .cta{ display:flex; gap:10px; flex-wrap:wrap }
     .btn{
-      display:inline-flex; align-items:center; gap:10px; padding:10px 14px; border-radius:10px;
-      border:1px solid rgba(255,255,255,.08); background: linear-gradient(180deg, var(--panel), var(--panel-2));
-      box-shadow: var(--shadow); color:var(--text); text-decoration:none; font-weight:600;
+      display:inline-flex; align-items:center; gap:8px; padding:9px 12px; border-radius:8px;
+      border:1px solid var(--hairline); background: var(--panel); color: var(--fg); text-decoration:none; font-weight:600;
+      box-shadow: var(--shadow);
     }
-    .btn:hover{filter:brightness(1.08)}
-    .btn:focus-visible{outline:none; box-shadow:var(--ring)}
-    .btn.primary{ background: linear-gradient(120deg, var(--brand), var(--brand-2)); color:#0a0d1d; border-color:transparent; }
-    .hero{display:grid; gap:20px; padding:48px 24px 8px; grid-template-columns: 1.1fr .9fr;}
-    .hero h1{margin:0 0 10px 0; font-size: clamp(28px, 4vw, 48px); line-height:1.1; text-shadow: 0 10px 40px rgba(36,210,232,.2);}
-    .kicker{display:inline-flex; gap:8px; align-items:center; font-weight:600; font-size:14px; color:var(--muted); margin-bottom:10px;}
-    .badge{padding:6px 10px; border-radius:999px; background:rgba(36,210,232,.12); color:#b9f6ff; border:1px solid rgba(36,210,232,.25)}
-    .hero p{color:var(--muted); margin:8px 0 18px}
+    .btn:hover{ filter: brightness(1.03) }
+    .btn.primary{ background: var(--fg); color: var(--bg); border-color: var(--fg) }
+
+    /* Hero */
+    .hero{ padding: 36px 0 10px }
+    .kicker{ font-size:.9rem; color: var(--muted); margin-bottom: 6px }
+    h1{ font-size: clamp(28px, 4vw, 42px); line-height:1.15; margin: 8px 0 12px }
+    .lead{ color: var(--muted); max-width: 75ch }
+    .badges{ display:flex; gap:8px; flex-wrap:wrap; margin: 8px 0 12px }
+    .badge{
+      display:inline-flex; align-items:center; gap:8px; padding:4px 10px; border-radius:999px;
+      border:1px solid var(--hairline); background: var(--panel); color: var(--muted); font-weight:600; font-size:.85rem;
+    }
+
+    .grid{ display:grid; gap: 18px; grid-template-columns: 1.05fr .95fr; }
+    @media (max-width: 980px){ .grid{ grid-template-columns: 1fr } }
+
     .panel{
-      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
-      border:1px solid rgba(255,255,255,.08); border-radius: var(--radius); box-shadow: var(--shadow); padding:20px;
+      background: var(--panel); border:1px solid var(--hairline); border-radius: var(--radius);
+      padding: 18px; box-shadow: var(--shadow);
     }
-    .stats{display:grid; grid-template-columns: repeat(3,1fr); gap:14px;}
-    .stat{padding:14px; border-radius:12px; background: rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06)}
-    .stat b{display:block; font-size:20px}
-
-    /* One slider per row (near full width) */
-    .grid{display:grid; gap:var(--grid-gap); grid-template-columns: 1fr; margin-top:28px;}
-    .slider-wrapper{ display:flex; flex-direction:column; gap:12px }
-    .slider-title{ font-size:1rem; font-weight:600; color:var(--text); opacity:.9; padding:0 4px }
-
-    .comparison-slider {
-      position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 12px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.35); cursor: ew-resize; user-select: none; background: #000;
-      outline: none; border:1px solid rgba(255,255,255,.08);
+    .stats{
+      display:grid; gap: 10px; grid-template-columns: repeat(3,1fr); margin-top: 12px;
     }
-    .img-wrapper { position:absolute; inset:0 }
-    .img-wrapper img{ width:100%; height:100%; object-fit:cover; display:block }
-    .img-compressed { z-index:1 }
-    .img-uncompressed { z-index:2; clip-path: inset(0 50% 0 0) }
-    .slider-line{ position:absolute; top:0; left:50%; width:3px; height:100%; background:white; z-index:3; transform: translateX(-50%); box-shadow: 0 0 10px rgba(0,0,0,.45) }
-    .slider-handle{
+    .stat{ padding:12px; border:1px solid var(--hairline); border-radius:8px; background: #fff }
+    .stat b{ display:block; font-size: 1.06rem }
+
+    section{ margin: 28px 0 }
+    section h2{ margin: 0 0 10px; font-size: 1.28rem }
+    section p{ margin: 6px 0 10px }
+
+    .pipeline ol{ margin: 0; padding-left: 18px }
+    .pipeline li{ margin: 6px 0 }
+
+    /* Comparison slider (accessible, minimal) */
+    .sliders{ display:grid; gap: 14px; grid-template-columns: 1fr }
+    .slider-card{ display:flex; flex-direction:column; gap:8px }
+    .slider-title{ font-weight:600 }
+    .comparison{
+      position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 8px;
+      border:1px solid var(--hairline); background: #000;
+    }
+    .comparison .img{ position:absolute; inset:0 }
+    .comparison img{ width:100%; height:100%; object-fit: cover; display:block }
+    .comparison .top{ z-index:2; clip-path: inset(0 50% 0 0) }
+    .comparison .rule{ position:absolute; top:0; left:50%; width:2px; height:100%; background:#fff; z-index:3; transform: translateX(-1px) }
+    .comparison .handle{
       position:absolute; top:50%; left:50%; transform: translate(-50%,-50%);
-      width:54px; height:54px; border-radius:50%; z-index:4;
-      display:flex; align-items:center; justify-content:center;
-      background: radial-gradient(circle at 30% 30%, #fff, #dfe6ff);
-      border:1px solid rgba(0,0,0,.2); box-shadow: 0 8px 30px rgba(0,0,0,.35);
-      transition: transform .1s ease;
+      width:40px; height:40px; border-radius:999px; background:#fff; z-index:4; border:1px solid rgba(0,0,0,.25);
+      box-shadow: 0 6px 18px rgba(0,0,0,.25);
     }
-    .comparison-slider:focus-visible .slider-handle{ box-shadow:0 0 0 4px rgba(107,124,255,.45), 0 8px 30px rgba(0,0,0,.35) }
-    .slider-handle:hover{ transform: translate(-50%,-50%) scale(1.06) }
-    .slider-handle::before, .slider-handle::after{ content:''; position:absolute; width:0; height:0; border-style:solid; }
-    .slider-handle::before{ left:12px; border-width:8px 12px 8px 0; border-color: transparent #667eea transparent transparent }
-    .slider-handle::after { right:12px; border-width:8px 0 8px 12px; border-color: transparent transparent transparent #667eea }
-    .labels{ position:absolute; top:14px; left:0; right:0; display:flex; justify-content:space-between; padding:0 14px; z-index:5; pointer-events:none }
-    .label{ background: rgba(0,0,0,.58); color:white; padding:7px 12px; border-radius:8px; font-size:12px; font-weight:700; border:1px solid rgba(255,255,255,.12); backdrop-filter: blur(5px); }
+    .labels{ position:absolute; top:10px; left:0; right:0; display:flex; justify-content:space-between; padding:0 10px; z-index:5; pointer-events:none }
+    .chip{ background: rgba(0,0,0,.55); color:#fff; padding:4px 8px; border-radius: 6px; font-size: 12px; border:1px solid rgba(255,255,255,.15) }
 
-    details.results{ margin-top:32px }
-    details.results summary{
-      cursor:pointer; list-style:none; display:flex; align-items:center; gap:10px; font-weight:700;
-      padding:12px 14px; border-radius:10px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06)
+    /* Table */
+    .table-wrap{ overflow:auto; border-radius:8px; border:1px solid var(--hairline); background:#fff }
+    table{ width:100%; border-collapse: collapse; font-size: 14px; background: #fff }
+    thead th{ text-align:left; background: var(--panel) }
+    th, td{ padding:10px 12px; border-bottom:1px solid var(--hairline) }
+    tbody tr:hover{ background: #fafbfc }
+
+    /* Footer */
+    footer{ margin: 40px 0 60px; padding-top: 16px; border-top: 1px solid var(--hairline); color: var(--muted); display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap }
+
+    /* Print: compact */
+    @media print{
+      header, .cta, .sliders, .comparison, .labels { display:none !important }
+      body{ color:#000; background:#fff }
+      .panel{ box-shadow:none }
+      a{ color: #000; text-decoration: underline }
     }
-    table{ width:100%; border-collapse:collapse; margin-top:14px; font-size:14px; border:1px solid rgba(255,255,255,.06); border-radius:10px; overflow:hidden }
-    thead th{ text-align:left; background:rgba(255,255,255,.04) }
-    th, td{ padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06) }
-    tbody tr:hover{ background: rgba(255,255,255,.02) }
-
-    footer{ margin-top:48px; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:0 24px; color:var(--muted); }
-    @media (max-width: 980px){ .hero{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
   <header>
-    <div class="nav wrap">
-      <div class="logo">
+    <div class="wrap nav" role="navigation" aria-label="Primary">
+      <div class="brand">
         <span class="dot" aria-hidden="true"></span>
-        <span class="brand">Post-Hoc Gaussian Compression</span>
+        <span>Fast 3DGS — Post-hoc Compression</span>
       </div>
       <div class="cta">
-        <a class="btn" href="#demo">Demo</a>
-        <!-- Replace with your repository URL -->
-        <a class="btn primary" href="https://github.com/francescodisario/Fast-3DGS" target="_blank" rel="noopener">View Code on GitHub</a>
+        <a class="btn" href="#results">Results</a>
+        <a class="btn" href="#demo">Qualitative</a>
+        <a class="btn primary" href="https://github.com/francescodisario/Fast-3DGS" target="_blank" rel="noopener">Code on GitHub</a>
       </div>
     </div>
   </header>
 
-  <main class="wrap">
+  <main class="wrap" id="top">
     <section class="hero">
-      <div>
-        <div class="kicker"><span class="badge">Runner-up (2nd) · COGS’25 @ ICCV 2025</span></div>
-        <h1>Post-hoc Compression for Gaussian Splatting</h1>
-        <p>
-          Inspired by <strong>gradient-informed pruning</strong>, our post-hoc method alternates
-          <strong>gradient accumulation</strong> and <strong>pruning + fine-tuning</strong> on a pretrained 3DGS model.
-          Each step removes Gaussians with the <em>smallest gradient magnitude</em>; we then recover quality with
-          <strong>quantization-aware</strong> fine-tuning (<em>SH → uint8</em>, <em>others → FP16</em>) and finally pack parameters with <strong>LZMA</strong>.
-        </p>
-        <div class="panel stats">
-          <div class="stat"><b>≈30k</b> total iterations</div>
-          <div class="stat"><b>5%</b> pruning per step</div>
-          <div class="stat"><b>1 pass</b> gradient accumulation</div>
-        </div>
+      <div class="kicker">Research Project Page</div>
+      <h1>Post-hoc Compression for 3D Gaussian Splatting</h1>
+      <div class="badges" aria-label="Highlights">
+        <span class="badge" title="Award">Runner-up · COGS’25 (ICCV 2025)</span>
+        <span class="badge">Model-agnostic</span>
+        <span class="badge">Pruning + QAT + Entropy Coding</span>
       </div>
-      <div class="panel">
-        <h3>Pipeline at a glance</h3>
-        <ol>
-          <li>Accumulate gradients on the training set.</li>
-          <li>Prune Gaussians with the smallest gradients.</li>
-          <li>Fine-tune with quantization (SH→uint8, others→FP16).</li>
-          <li>Repeat until the stopping criterion is met; final recovery stage and <strong>LZMA</strong> compression.</li>
-        </ol>
-        <small style="color:#a6b0d8">Goal: reduce memory while preserving quality (PSNR/SSIM) and high FPS.</small>
-      </div>
-    </section>
+      <p class="lead">
+        We present a post-hoc compression pipeline for pretrained 3D Gaussian Splatting (3DGS) models.
+        The method alternates <strong>gradient accumulation</strong> and <strong>gradient-informed pruning</strong> with
+        <strong>quantization-aware fine-tuning</strong>, followed by entropy coding. It reduces model size and improves
+        frame rate with minimal loss in visual quality.
+      </p>
 
-    <section id="demo" class="grid" aria-label="Interactive demo">
-      <!-- One slider per row (full list) -->
-      <div class="slider-wrapper"><div class="slider-title">Bicycle</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/bicycle/pre/0.png" alt="Bicycle compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/bicycle/post/0.png" alt="Bicycle uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
+      <div class="grid">
+        <div>
+          <div class="panel">
+            <h2>Key Numbers</h2>
+            <div class="stats" role="list">
+              <div class="stat" role="listitem"><b>~30k</b> total fine-tuning steps</div>
+              <div class="stat" role="listitem"><b>5%</b> pruning per iteration</div>
+              <div class="stat" role="listitem"><b>1 pass</b> gradient accumulation</div>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">Bonsai</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/bonsai/pre/0.png" alt="Bonsai compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/bonsai/post/0.png" alt="Bonsai uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
-        </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">Counter</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/counter/pre/1.png" alt="Counter compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/counter/post/1.png" alt="Counter uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
-        </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">Flowers</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/flowers/pre/1.png" alt="Flowers compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/flowers/post/1.png" alt="Flowers uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
-        </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">Garden</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/garden/pre/6.png" alt="Garden compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/garden/post/6.png" alt="Garden uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
-        </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">Kitchen</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/kitchen/pre/20.png" alt="Kitchen compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/kitchen/post/20.png" alt="Kitchen uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
-        </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">Room</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/room/pre/29.png" alt="Room compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/room/post/29.png" alt="Room uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
-        </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">Stump</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/stump/pre/0.png" alt="Stump compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/stump/post/0.png" alt="Stump uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
-        </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">Treehill</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/treehill/pre/12.png" alt="Treehill compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/treehill/post/12.png" alt="Treehill uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
-        </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">Train</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/train/pre/20.png" alt="Train compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/train/post/20.png" alt="Train uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
-        </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">Truck</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/truck/pre/4.png" alt="Truck compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/truck/post/4.png" alt="Truck uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
-        </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">DrJohnson</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/drjohnson/post/0.png" alt="DrJohnson compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/drjohnson/pre/0.png" alt="DrJohnson uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
-        </div>
-      </div>
-
-      <div class="slider-wrapper"><div class="slider-title">Playroom</div>
-        <div class="comparison-slider" tabindex="0">
-          <div class="labels"><span class="label">Compressed</span><span class="label">Uncompressed</span></div>
-          <div class="img-wrapper img-compressed"><img loading="lazy" src="./render_out/playroom/post/8.png" alt="Playroom compressed"></div>
-          <div class="img-wrapper img-uncompressed"><img loading="lazy" src="./render_out/playroom/pre/8.png" alt="Playroom uncompressed"></div>
-          <div class="slider-line"></div><div class="slider-handle" aria-hidden="true"></div>
+        <div class="panel pipeline">
+          <h2>Pipeline</h2>
+          <ol>
+            <li>Accumulate gradients on the training set (one pass).</li>
+            <li>Prune Gaussians with the smallest gradient magnitudes.</li>
+            <li>Fine-tune with quantization awareness (SH→uint8, others→FP16).</li>
+            <li>Repeat until the stopping criterion is met; finalize with entropy coding (LZMA).</li>
+          </ol>
+          <p class="muted" style="color:var(--muted)">Objective: reduce memory footprint while preserving PSNR/SSIM and sustaining high FPS.</p>
         </div>
       </div>
     </section>
 
-    <details class="results">
-      <summary>Show results table</summary>
-      <div class="panel" style="margin-top:14px">
-        <div style="overflow:auto">
-          <table aria-label="Quantitative results">
-            <thead>
-              <tr><th>Scene</th><th>PSNR</th><th>SSIM</th><th>LPIPS</th><th>NUM GAUSSIANS</th><th>FPS</th><th>SIZE (MB)</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>bicycle</td><td>25.22</td><td>0.755</td><td>0.248</td><td>579283</td><td>171</td><td>21.66</td></tr>
-              <tr><td>bonsai</td><td>32.14</td><td>0.939</td><td>0.215</td><td>296058</td><td>205</td><td>10.56</td></tr>
-              <tr><td>counter</td><td>28.98</td><td>0.902</td><td>0.220</td><td>203121</td><td>175</td><td>8.04</td></tr>
-              <tr><td>flowers</td><td>21.55</td><td>0.596</td><td>0.368</td><td>491931</td><td>234</td><td>20.21</td></tr>
-              <tr><td>garden</td><td>27.37</td><td>0.861</td><td>0.125</td><td>1130273</td><td>143</td><td>44.51</td></tr>
-              <tr><td>kitchen</td><td>30.93</td><td>0.919</td><td>0.150</td><td>263772</td><td>185</td><td>10.39</td></tr>
-              <tr><td>room</td><td>31.42</td><td>0.913</td><td>0.244</td><td>166795</td><td>195</td><td>5.62</td></tr>
-              <tr><td>stump</td><td>26.66</td><td>0.767</td><td>0.260</td><td>327342</td><td>262</td><td>13.05</td></tr>
-              <tr><td>treehill</td><td>22.27</td><td>0.590</td><td>0.457</td><td>94202</td><td>304</td><td>3.44</td></tr>
-              <tr><td><b>AVG</b></td><td><b>27.39</b></td><td><b>0.805</b></td><td><b>0.254</b></td><td><b>394753</b></td><td><b>208</b></td><td><b>15.28</b></td></tr>
-              <tr><td>drjohnson</td><td>28.99</td><td>0.897</td><td>0.276</td><td>165140</td><td>325</td><td>6.17</td></tr>
-              <tr><td>playroom</td><td>30.22</td><td>0.910</td><td>0.252</td><td>381647</td><td>251</td><td>13.93</td></tr>
-              <tr><td><b>AVG</b></td><td><b>29.61</b></td><td><b>0.903</b></td><td><b>0.264</b></td><td><b>273394</b></td><td><b>288</b></td><td><b>10.05</b></td></tr>
-              <tr><td>train</td><td>21.79</td><td>0.764</td><td>0.296</td><td>87527</td><td>415</td><td>3.38</td></tr>
-              <tr><td>truck</td><td>25.04</td><td>0.872</td><td>0.165</td><td>361868</td><td>243</td><td>12.64</td></tr>
-              <tr><td><b>AVG</b></td><td><b>23.42</b></td><td><b>0.818</b></td><td><b>0.230</b></td><td><b>224698</b></td><td><b>329</b></td><td><b>8.01</b></td></tr>
-            </tbody>
-          </table>
+    <section id="demo">
+      <h2>Qualitative Comparisons</h2>
+      <p>Drag the handle to compare compressed vs. original renderings. Keyboard: ←/→ (Shift for larger steps).</p>
+      <div class="sliders" role="list">
+        <!-- Update paths as needed -->
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Bicycle</div>
+          <div class="comparison" tabindex="0" aria-label="Bicycle comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/bicycle/pre/0.png" alt="Bicycle compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/bicycle/post/0.png" alt="Bicycle original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
         </div>
-        <small style="color:#a6b0d8">Implementation based on vanilla-3dgs.</small>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Bonsai</div>
+          <div class="comparison" tabindex="0" aria-label="Bonsai comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/bonsai/pre/0.png" alt="Bonsai compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/bonsai/post/0.png" alt="Bonsai original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Counter</div>
+          <div class="comparison" tabindex="0" aria-label="Counter comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/counter/pre/1.png" alt="Counter compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/counter/post/1.png" alt="Counter original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Flowers</div>
+          <div class="comparison" tabindex="0" aria-label="Flowers comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/flowers/pre/1.png" alt="Flowers compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/flowers/post/1.png" alt="Flowers original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Garden</div>
+          <div class="comparison" tabindex="0" aria-label="Garden comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/garden/pre/6.png" alt="Garden compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/garden/post/6.png" alt="Garden original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Kitchen</div>
+          <div class="comparison" tabindex="0" aria-label="Kitchen comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/kitchen/pre/20.png" alt="Kitchen compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/kitchen/post/20.png" alt="Kitchen original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Room</div>
+          <div class="comparison" tabindex="0" aria-label="Room comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/room/pre/29.png" alt="Room compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/room/post/29.png" alt="Room original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Stump</div>
+          <div class="comparison" tabindex="0" aria-label="Stump comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/stump/pre/0.png" alt="Stump compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/stump/post/0.png" alt="Stump original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Treehill</div>
+          <div class="comparison" tabindex="0" aria-label="Treehill comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/treehill/pre/12.png" alt="Treehill compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/treehill/post/12.png" alt="Treehill original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Train</div>
+          <div class="comparison" tabindex="0" aria-label="Train comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/train/pre/20.png" alt="Train compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/train/post/20.png" alt="Train original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Truck</div>
+          <div class="comparison" tabindex="0" aria-label="Truck comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/truck/pre/4.png" alt="Truck compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/truck/post/4.png" alt="Truck original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">DrJohnson</div>
+          <div class="comparison" tabindex="0" aria-label="DrJohnson comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/drjohnson/post/0.png" alt="DrJohnson compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/drjohnson/pre/0.png" alt="DrJohnson original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="slider-card" role="listitem">
+          <div class="slider-title">Playroom</div>
+          <div class="comparison" tabindex="0" aria-label="Playroom comparison slider">
+            <div class="labels"><span class="chip">Compressed</span><span class="chip">Original</span></div>
+            <div class="img"><img loading="lazy" src="./render_out/playroom/post/8.png" alt="Playroom compressed frame"></div>
+            <div class="img top"><img loading="lazy" src="./render_out/playroom/pre/8.png" alt="Playroom original frame"></div>
+            <div class="rule" aria-hidden="true"></div>
+            <div class="handle" aria-hidden="true"></div>
+          </div>
+        </div>
       </div>
-    </details>
+      <noscript><p><em>Enable JavaScript to use the interactive comparisons.</em></p></noscript>
+    </section>
+
+    <section id="results">
+      <h2>Quantitative Results</h2>
+      <p>
+        On Mip-NeRF360 we observe substantial reductions in model size and improvements in throughput,
+        with minimal changes in PSNR/SSIM. Comparable trends are observed on DeepBlending and Tanks&Temples.
+      </p>
+      <div class="table-wrap" role="region" aria-label="Quantitative results">
+        <table>
+          <thead>
+            <tr><th>Scene</th><th>PSNR</th><th>SSIM</th><th>LPIPS</th><th># Gaussians</th><th>FPS</th><th>Size (MB)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>bicycle</td><td>25.22</td><td>0.755</td><td>0.248</td><td>579,283</td><td>171</td><td>21.66</td></tr>
+            <tr><td>bonsai</td><td>32.14</td><td>0.939</td><td>0.215</td><td>296,058</td><td>205</td><td>10.56</td></tr>
+            <tr><td>counter</td><td>28.98</td><td>0.902</td><td>0.220</td><td>203,121</td><td>175</td><td>8.04</td></tr>
+            <tr><td>flowers</td><td>21.55</td><td>0.596</td><td>0.368</td><td>491,931</td><td>234</td><td>20.21</td></tr>
+            <tr><td>garden</td><td>27.37</td><td>0.861</td><td>0.125</td><td>1,130,273</td><td>143</td><td>44.51</td></tr>
+            <tr><td>kitchen</td><td>30.93</td><td>0.919</td><td>0.150</td><td>263,772</td><td>185</td><td>10.39</td></tr>
+            <tr><td>room</td><td>31.42</td><td>0.913</td><td>0.244</td><td>166,795</td><td>195</td><td>5.62</td></tr>
+            <tr><td>stump</td><td>26.66</td><td>0.767</td><td>0.260</td><td>327,342</td><td>262</td><td>13.05</td></tr>
+            <tr><td>treehill</td><td>22.27</td><td>0.590</td><td>0.457</td><td>94,202</td><td>304</td><td>3.44</td></tr>
+            <tr><td><strong>AVG</strong></td><td><strong>27.39</strong></td><td><strong>0.805</strong></td><td><strong>0.254</strong></td><td><strong>394,753</strong></td><td><strong>208</strong></td><td><strong>15.28</strong></td></tr>
+            <tr><td>drjohnson</td><td>28.99</td><td>0.897</td><td>0.276</td><td>165,140</td><td>325</td><td>6.17</td></tr>
+            <tr><td>playroom</td><td>30.22</td><td>0.910</td><td>0.252</td><td>381,647</td><td>251</td><td>13.93</td></tr>
+            <tr><td><strong>AVG</strong></td><td><strong>29.61</strong></td><td><strong>0.903</strong></td><td><strong>0.264</strong></td><td><strong>273,394</strong></td><td><strong>288</strong></td><td><strong>10.05</strong></td></tr>
+            <tr><td>train</td><td>21.79</td><td>0.764</td><td>0.296</td><td>87,527</td><td>415</td><td>3.38</td></tr>
+            <tr><td>truck</td><td>25.04</td><td>0.872</td><td>0.165</td><td>361,868</td><td>243</td><td>12.64</td></tr>
+            <tr><td><strong>AVG</strong></td><td><strong>23.42</strong></td><td><strong>0.818</strong></td><td><strong>0.230</strong></td><td><strong>224,698</strong></td><td><strong>329</strong></td><td><strong>8.01</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="color:var(--muted)">Implementation based on vanilla-3DGS. FPS measured on our setup; absolute numbers may vary across hardware.</p>
+    </section>
+
+    <section id="method">
+      <h2>Method Details</h2>
+      <ul>
+        <li>Spherical harmonics (SH) coefficients are quantized to uint8; other parameters are stored in FP16.</li>
+        <li>We apply an L1 penalty on SH coefficients to encourage sparsity.</li>
+        <li>Pruning proceeds in 5% steps by ascending gradient magnitude; quality is checked after each iteration.</li>
+        <li>We stop when <code>PSNR ≤ baseline − 0.1 dB</code>. Morton ordering is applied prior to entropy coding (LZMA).</li>
+      </ul>
+    </section>
+
+    <section id="resources">
+      <h2>Resources</h2>
+      <p class="panel">
+        <strong>Code:</strong> <a href="https://github.com/francescodisario/Fast-3DGS" target="_blank" rel="noopener">github.com/francescodisario/Fast-3DGS</a><br />
+        <strong>Project Page:</strong> <a href="https://francescodisario.github.io/Fast-3DGS/" target="_blank" rel="noopener">Fast-3DGS</a><br />
+        <strong>Acknowledgements:</strong> built upon ELMGS and GoDe.
+      </p>
+
+    </section>
 
     <footer>
-      <div>© 2025 — Post-Hoc Gaussian Compression</div>
-      <div>Code: <a href="https://github.com/francescodisario/Fast-3DGS" target="_blank" rel="noopener">github.com/your-org/post-hoc-compression</a></div>
+      <div>© 2025 — Fast 3DGS</div>
+      <div>Code: <a href="https://github.com/francescodisario/Fast-3DGS" target="_blank" rel="noopener">github.com/francescodisario/Fast-3DGS</a></div>
     </footer>
   </main>
 
   <script>
-    // Slider logic (mouse, touch, keyboard)
-    const sliders = document.querySelectorAll('.comparison-slider');
-    sliders.forEach((slider) => {
-      const uncompressed = slider.querySelector('.img-uncompressed');
-      const sliderLine = slider.querySelector('.slider-line');
-      const sliderHandle = slider.querySelector('.slider-handle');
-      let isPointerDown = false; let percentage = 50;
+    // Minimal, accessible comparison slider (mouse, touch, keyboard)
+    (function(){
+      const sliders = document.querySelectorAll('.comparison');
+      sliders.forEach((root) => {
+        const top = root.querySelector('.top');
+        const rule = root.querySelector('.rule');
+        const handle = root.querySelector('.handle');
+        let pct = 50; let dragging = false;
 
-      function setPosition(p){
-        percentage = Math.max(0, Math.min(100, p));
-        uncompressed.style.clipPath = `inset(0 ${100 - percentage}% 0 0)`;
-        sliderLine.style.left = `${percentage}%`;
-        sliderHandle.style.left = `${percentage}%`;
-      }
-      setPosition(50);
+        function setPct(p){
+          pct = Math.max(0, Math.min(100, p));
+          top.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+          rule.style.left = `${pct}%`;
+          handle.style.left = `${pct}%`;
+        }
+        setPct(pct);
 
-      function updateFromEvent(e){
-        const rect = slider.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        let x = clientX - rect.left; x = Math.max(0, Math.min(x, rect.width));
-        setPosition((x / rect.width) * 100);
-      }
+        function update(e){
+          const rect = root.getBoundingClientRect();
+          const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
+          const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+          setPct( x / rect.width * 100 );
+        }
 
-      slider.addEventListener('mousedown', (e) => { isPointerDown = true; updateFromEvent(e); });
-      window.addEventListener('mousemove', (e) => { if(isPointerDown) updateFromEvent(e); });
-      window.addEventListener('mouseup',   () => { isPointerDown = false; });
+        root.addEventListener('mousedown', (e)=>{ dragging = true; update(e); });
+        root.addEventListener('touchstart', (e)=>{ dragging = true; update(e); }, {passive:true});
+        window.addEventListener('mousemove', (e)=>{ if(dragging) update(e); });
+        window.addEventListener('touchmove', (e)=>{ if(dragging) update(e); }, {passive:true});
+        window.addEventListener('mouseup', ()=> dragging = false);
+        window.addEventListener('touchend', ()=> dragging = false);
 
-      slider.addEventListener('touchstart', (e) => { isPointerDown = true; updateFromEvent(e); }, {passive:true});
-      slider.addEventListener('touchmove',  (e) => { if(isPointerDown) updateFromEvent(e); }, {passive:true});
-      slider.addEventListener('touchend',   () => { isPointerDown = false; });
-
-      slider.addEventListener('mousemove', (e) => { if(!isPointerDown) updateFromEvent(e); });
-
-      // Keyboard (← →) with 2% steps; Shift for 10%
-      slider.addEventListener('keydown', (e) => {
-        const step = e.shiftKey ? 10 : 2;
-        if(e.key === 'ArrowLeft'){ setPosition(percentage - step); }
-        if(e.key === 'ArrowRight'){ setPosition(percentage + step); }
+        root.addEventListener('keydown', (e)=>{
+          const step = e.shiftKey ? 10 : 2;
+          if(e.key === 'ArrowLeft') setPct(pct - step);
+          if(e.key === 'ArrowRight') setPct(pct + step);
+        });
       });
-    });
+    })();
   </script>
 </body>
 </html>
